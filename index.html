@@ -19,7 +19,6 @@
         background: #eee;
         text-align: center;
       }
-      /* Removed max-height so #result takes up full remaining space */
       #result {
         flex: 1;
         overflow-y: auto;
@@ -37,7 +36,7 @@
     <div id="result">Loading feature detection results...</div>
 
     <script>
-      // Utility function to safely stringify an object
+      // Utility function: safely stringify an object so that nested objects get printed.
       function safeStringify(value) {
         try {
           return JSON.stringify(
@@ -55,48 +54,95 @@
         }
       }
 
-      if (typeof Modernizr === "undefined") {
-        console.error("Modernizr not found.");
-        document.getElementById("result").textContent =
-          "Error: Modernizr failed to load.";
-      } else {
+      // This function attempts to compile a minimal module that uses a WebAssembly 2023 feature.
+      // In this example, we test using a tail call opcode (0x6B as per the emerging proposal).
+      function checkWasm2023Support() {
+        // Minimal WASM binary:
+        //  - Standard header and version
+        //  - One type section defining a function type (no params, no results)
+        //  - One function section that refers to the type
+        //  - One code section that defines a function body using the hypothetical tail call opcode.
+        const wasmModuleBytes = new Uint8Array([
+          0x00,
+          0x61,
+          0x73,
+          0x6d, // magic "\0asm"
+          0x01,
+          0x00,
+          0x00,
+          0x00, // wasm version 1
+          // Type section:
+          0x01, // section code: Type
+          0x07, // section length
+          0x01, // count: 1 type
+          0x60, // func type form
+          0x00, // param count: 0
+          0x00, // result count: 0
+          // Function section:
+          0x03, // section code: Function
+          0x02, // section length
+          0x01, // count: 1 function
+          0x00, // type index of the function
+          // Code section:
+          0x0a, // section code: Code
+          0x09, // section length
+          0x01, // count: 1 function body
+          0x07, // body size
+          0x00, // local decl count: 0
+          0x6b, // tail call opcode (hypothetical; part of WebAssembly 2023)
+          0x00, // function index to tail call (points to itself)
+          0x0b, // end opcode
+        ]);
+
+        return WebAssembly.compile(wasmModuleBytes)
+          .then(() => true)
+          .catch(() => false);
+      }
+
+      async function displayDetectionResults() {
         let resultsHTML = "<ul>";
 
-        // Iterate over Modernizr keys and display them; expand objects into a string.
-        Object.keys(Modernizr).forEach((key) => {
-          if (typeof Modernizr[key] !== "function") {
-            let displayValue = Modernizr[key];
-            if (typeof displayValue === "object" && displayValue !== null) {
-              displayValue = safeStringify(displayValue);
+        // Iterate over Modernizr keys and display them; expand objects for better readability.
+        if (typeof Modernizr !== "undefined") {
+          Object.keys(Modernizr).forEach((key) => {
+            if (typeof Modernizr[key] !== "function") {
+              let displayValue = Modernizr[key];
+              if (typeof displayValue === "object" && displayValue !== null) {
+                displayValue = safeStringify(displayValue);
+              }
+              resultsHTML += `<li>${key}: ${displayValue}</li>`;
             }
-            resultsHTML += `<li>${key}: ${displayValue}</li>`;
-          }
-        });
+          });
+        } else {
+          resultsHTML += `<li>Error: Modernizr failed to load.</li>`;
+        }
 
-        // Explicit WebAssembly detection test.
-        let wasmSupport = "WebAssembly is not supported.";
+        // Basic WebAssembly support (for basic WASM validation)
+        const basicWasmSupport =
+          typeof WebAssembly === "object" &&
+          typeof WebAssembly.instantiate === "function"
+            ? "WebAssembly is supported."
+            : "WebAssembly is not supported.";
+        resultsHTML += `<li>basic_wasm: ${basicWasmSupport}</li>`;
+
+        // Check for WebAssembly 2023 feature (e.g., tail call)
+        let wasm2023Support = "Undetermined";
         if (
           typeof WebAssembly === "object" &&
           typeof WebAssembly.instantiate === "function"
         ) {
-          try {
-            const moduleBytes = new Uint8Array([
-              0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
-            ]);
-            const mod = new WebAssembly.Module(moduleBytes);
-            if (mod instanceof WebAssembly.Module) {
-              wasmSupport = "WebAssembly is supported.";
-            }
-          } catch (e) {
-            wasmSupport = "WebAssembly is not supported.";
-          }
+          const supported = await checkWasm2023Support();
+          wasm2023Support = supported
+            ? "WebAssembly 2023 features supported."
+            : "WebAssembly 2023 features NOT supported.";
         }
+        resultsHTML += `<li>wasm2023: ${wasm2023Support}</li>`;
 
-        resultsHTML += `<li>webassembly_manual: ${wasmSupport}</li>`;
         resultsHTML += "</ul>";
-
         document.getElementById("result").innerHTML = resultsHTML;
       }
+
+      displayDetectionResults();
     </script>
   </body>
 </html>
