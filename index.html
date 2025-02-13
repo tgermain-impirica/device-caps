@@ -36,7 +36,7 @@
     <div id="result">Loading feature detection results...</div>
 
     <script>
-      // Utility function to safely stringify objects
+      // Utility function: safely stringify objects for display.
       function safeStringify(value) {
         try {
           return JSON.stringify(
@@ -54,41 +54,39 @@
         }
       }
 
-      // Detect basic WebAssembly support is done separately below.
-      // This function attempts to compile a minimal SIMD module.
-      function checkSimdSupport() {
-        // Minimal module that returns a v128 constant.
+      // Check for WebAssembly SIMD (SIMD128) support.
+      function checkWasmSIMD() {
         const simdModuleBytes = new Uint8Array([
+          // "\0asm" header and version 1
           0x00,
           0x61,
           0x73,
-          0x6d, // magic
+          0x6d,
           0x01,
           0x00,
           0x00,
-          0x00, // version 1
-          // Type section: one type : () -> v128
-          0x01, // section id
-          0x07, // section length
-          0x01, // count: 1
-          0x60, // func type
-          0x00, // param count: 0
-          0x01, // result count: 1
-          0x7b, // result type: v128
-          // Function section: one function, type index 0.
-          0x03, // section id
-          0x02, // section length
-          0x01, // count: 1
-          0x00, // type index 0
-          // Code section
-          0x0a, // section id
-          0x11, // section length: 17 bytes
-          0x01, // count: 1 function
-          0x0f, // function body size: 15 bytes
-          0x00, // local decl count: 0
+          0x00,
+          // Type section: one function type that returns a v128 (0x7b)
+          0x01, // Section code: Type
+          0x0b, // Section length: 11
+          0x01, // Count: 1
+          0x60, // Function type marker
+          0x00, // Param count: 0
+          0x01, // Result count: 1
+          0x7b, // Result type: v128
+          // Function section: one function with type index 0
+          0x03,
+          0x02,
+          0x01,
+          0x00,
+          // Code section: one function body
+          0x0a, // Section code: Code
+          0x15, // Section length: 21 bytes
+          0x01, // Function count: 1
+          0x14, // Body size: 20 bytes
+          0x00, // Local decl count: 0
+          // Instruction: v128.const (opcode 0xfd 0x00) with 16 zero bytes immediate
           0xfd,
-          0x00, // v128.const opcode (SIMD opcode prefix 0xfd, then 0x00)
-          // 16 bytes immediate (all zero)
           0x00,
           0x00,
           0x00,
@@ -105,101 +103,109 @@
           0x00,
           0x00,
           0x00,
-          0x0b, // end opcode
+          0x00,
+          0x0b, // End opcode
         ]);
         return WebAssembly.compile(simdModuleBytes)
           .then(() => true)
           .catch(() => false);
       }
 
-      // Detect threads support using a module that declares a shared memory
-      function checkThreadsSupport() {
+      // Check for WebAssembly threads (Shared memory) support.
+      function checkWasmThreads() {
+        // Minimal module that defines a shared memory.
         const threadsModuleBytes = new Uint8Array([
           0x00,
           0x61,
           0x73,
-          0x6d, // magic
+          0x6d, // "\0asm"
           0x01,
           0x00,
           0x00,
           0x00, // version 1
-          // Memory section: one memory with the shared flag (0x03)
-          0x05, // section id: Memory
-          0x04, // section length: 4 bytes
-          0x01, // count:1
-          0x03, // flags: 0x03 means shared memory
-          0x01, // initial pages (1 page = 64KiB)
-          0x01, // maximum pages
+          // Memory section:
+          0x05, // Section ID: Memory
+          0x04, // Section length: 4 bytes
+          0x01, // Number of memories: 1
+          0x03, // Flags: 0x03 means has max and is shared
+          0x00, // initial pages: 0
+          0x01, // maximum pages: 1
         ]);
         return WebAssembly.compile(threadsModuleBytes)
           .then(() => true)
           .catch(() => false);
       }
 
-      // Detect bulk memory operations support by calling a bulk opcode
-      function checkBulkMemorySupport() {
+      // Check for Bulk Memory Operations support.
+      function checkWasmBulkMemory() {
+        // Minimal module that uses the bulk memory "data.drop" opcode (0x1a)
+        // The module has one function that immediately uses the opcode.
         const bulkModuleBytes = new Uint8Array([
           0x00,
           0x61,
           0x73,
-          0x6d, // magic
+          0x6d, // header
           0x01,
           0x00,
           0x00,
-          0x00, // version
-          // Type section: () -> ()
-          0x01, // section id
-          0x07, // section length
-          0x01, // count: 1
-          0x60, // func type
-          0x00, // param count: 0
-          0x00, // result count: 0
-          // Function section: one function using the above type.
-          0x03, // section id
-          0x02, // section length
-          0x01, // count: 1
-          0x00, // type index 0
-          // Code section: use the "memory.copy" opcode (bulk memory op)
-          0x0a, // section id
-          0x09, // section length
-          0x01, // count: 1
-          0x07, // function body size: 7 bytes
-          0x00, // local decl count: 0
-          0xfc,
-          0x0a, // memory.copy opcode (bulk memory)
+          0x00, // version 1
+          // Type section: one function type: no params, no results.
+          0x01,
+          0x04,
+          0x01,
+          0x60,
           0x00,
           0x00,
-          0x00, // immediates for memory.copy (ignored here)
-          0x0b, // end opcode
+          // Function section: one function of type 0.
+          0x03,
+          0x02,
+          0x01,
+          0x00,
+          // Code section: one function body using bulk opcode.
+          0x0a,
+          0x06,
+          0x01,
+          0x04,
+          0x00,
+          0x1a,
+          0x0b,
         ]);
         return WebAssembly.compile(bulkModuleBytes)
           .then(() => true)
           .catch(() => false);
       }
 
-      // Detect Memory64 support.
-      // This detection uses the nonstandard "64" option when creating a memory.
-      // Current browsers may require an experimental flag (e.g. --enable-features=WebAssemblyMemory64).
-      function checkMemory64Support() {
-        try {
-          // Note: The "64" option is experimental and may not be recognized.
-          new WebAssembly.Memory({
-            initial: 1,
-            maximum: 2,
-            shared: false,
-            64: true,
-          });
-          return Promise.resolve(true);
-        } catch (e) {
-          return Promise.resolve(false);
-        }
+      // Check for Memory64 support.
+      function checkWasmMemory64() {
+        // Minimal module that declares a memory with the memory64 flag.
+        // Flags: 0x05 indicates that a maximum is present (0x01)
+        // and that memory64 is enabled (0x04).
+        const memory64ModuleBytes = new Uint8Array([
+          0x00,
+          0x61,
+          0x73,
+          0x6d, // "\0asm"
+          0x01,
+          0x00,
+          0x00,
+          0x00, // version 1
+          // Memory section:
+          0x05, // Section ID: Memory
+          0x06, // Section length: 6 bytes
+          0x01, // Count: 1 memory
+          0x05, // Flags: 0x05 = 0x01 (max present) | 0x04 (memory64)
+          0x00, // Initial pages: 0
+          0x01, // Maximum pages: 1
+        ]);
+        return WebAssembly.compile(memory64ModuleBytes)
+          .then(() => true)
+          .catch(() => false);
       }
 
-      // Main async function to perform all detection tests and output results.
       async function displayDetectionResults() {
         let resultsHTML = "<ul>";
 
-        // Dump Modernizr properties
+        // Dump Modernizr properties.
         if (typeof Modernizr !== "undefined") {
           Object.keys(Modernizr).forEach((key) => {
             if (typeof Modernizr[key] !== "function") {
@@ -214,7 +220,7 @@
           resultsHTML += `<li>Error: Modernizr failed to load.</li>`;
         }
 
-        // Basic WebAssembly support
+        // Basic WebAssembly support.
         const basicWasmSupport =
           typeof WebAssembly === "object" &&
           typeof WebAssembly.instantiate === "function"
@@ -222,28 +228,28 @@
             : "WebAssembly is NOT supported.";
         resultsHTML += `<li>basic_wasm: ${basicWasmSupport}</li>`;
 
-        // Check SIMD support
-        const simdSupported = await checkSimdSupport();
-        resultsHTML += `<li>wasm_simd: ${
-          simdSupported ? "Supported" : "NOT Supported"
+        // Check SIMD128 support.
+        const simdSupport = await checkWasmSIMD();
+        resultsHTML += `<li>wasm_simd128: ${
+          simdSupport ? "supported" : "NOT supported"
         }</li>`;
 
-        // Check Threads support
-        const threadsSupported = await checkThreadsSupport();
+        // Check Threads (Shared memory) support.
+        const threadsSupport = await checkWasmThreads();
         resultsHTML += `<li>wasm_threads: ${
-          threadsSupported ? "Supported" : "NOT Supported"
+          threadsSupport ? "supported" : "NOT supported"
         }</li>`;
 
-        // Check Bulk Memory Operations support
-        const bulkSupported = await checkBulkMemorySupport();
+        // Check Bulk Memory Operations support.
+        const bulkMemorySupport = await checkWasmBulkMemory();
         resultsHTML += `<li>wasm_bulk_memory: ${
-          bulkSupported ? "Supported" : "NOT Supported"
+          bulkMemorySupport ? "supported" : "NOT supported"
         }</li>`;
 
-        // Check Memory64 support
-        const memory64Supported = await checkMemory64Support();
+        // Check Memory64 support.
+        const memory64Support = await checkWasmMemory64();
         resultsHTML += `<li>wasm_memory64: ${
-          memory64Supported ? "Supported" : "NOT Supported"
+          memory64Support ? "supported" : "NOT supported"
         }</li>`;
 
         resultsHTML += "</ul>";
