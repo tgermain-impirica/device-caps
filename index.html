@@ -36,7 +36,7 @@
     <div id="result">Loading feature detection results...</div>
 
     <script>
-      // Utility function: safely stringify objects for display.
+      // Utility function to safely stringify objects for display.
       function safeStringify(value) {
         try {
           return JSON.stringify(
@@ -54,66 +54,21 @@
         }
       }
 
-      // Check for WebAssembly SIMD (SIMD128) support.
+      // Updated SIMD128 support check using Unity's module binary:
+      // Unity uses:
+      // WebAssembly.validate(new Uint8Array([
+      //   0,97,115,109, 1,0,0,0, 1,4,1,96,0,0, 3,2,1,0, 10,10,1,8,0,6,64,1,25,1,11,11
+      // ]))
       function checkWasmSIMD() {
-        const simdModuleBytes = new Uint8Array([
-          // "\0asm" header and version 1
-          0x00,
-          0x61,
-          0x73,
-          0x6d,
-          0x01,
-          0x00,
-          0x00,
-          0x00,
-          // Type section: one function type that returns a v128 (0x7b)
-          0x01, // Section code: Type
-          0x0b, // Section length: 11
-          0x01, // Count: 1
-          0x60, // Function type marker
-          0x00, // Param count: 0
-          0x01, // Result count: 1
-          0x7b, // Result type: v128
-          // Function section: one function with type index 0
-          0x03,
-          0x02,
-          0x01,
-          0x00,
-          // Code section: one function body
-          0x0a, // Section code: Code
-          0x15, // Section length: 21 bytes
-          0x01, // Function count: 1
-          0x14, // Body size: 20 bytes
-          0x00, // Local decl count: 0
-          // Instruction: v128.const (opcode 0xfd 0x00) with 16 zero bytes immediate
-          0xfd,
-          0x00,
-          0x00,
-          0x00,
-          0x00,
-          0x00,
-          0x00,
-          0x00,
-          0x00,
-          0x00,
-          0x00,
-          0x00,
-          0x00,
-          0x00,
-          0x00,
-          0x00,
-          0x00,
-          0x00,
-          0x0b, // End opcode
+        const unitySimdModuleBytes = new Uint8Array([
+          0, 97, 115, 109, 1, 0, 0, 0, 1, 4, 1, 96, 0, 0, 3, 2, 1, 0, 10, 10, 1,
+          8, 0, 6, 64, 1, 25, 1, 11, 11,
         ]);
-        return WebAssembly.compile(simdModuleBytes)
-          .then(() => true)
-          .catch(() => false);
+        return Promise.resolve(WebAssembly.validate(unitySimdModuleBytes));
       }
 
-      // Check for WebAssembly threads (Shared memory) support.
+      // Check for WebAssembly threads (shared memory) support.
       function checkWasmThreads() {
-        // Minimal module that defines a shared memory.
         const threadsModuleBytes = new Uint8Array([
           0x00,
           0x61,
@@ -126,8 +81,8 @@
           // Memory section:
           0x05, // Section ID: Memory
           0x04, // Section length: 4 bytes
-          0x01, // Number of memories: 1
-          0x03, // Flags: 0x03 means has max and is shared
+          0x01, // Count: 1 memory
+          0x03, // Flags: max present and shared (0x03)
           0x00, // initial pages: 0
           0x01, // maximum pages: 1
         ]);
@@ -138,8 +93,6 @@
 
       // Check for Bulk Memory Operations support.
       function checkWasmBulkMemory() {
-        // Minimal module that uses the bulk memory "data.drop" opcode (0x1a)
-        // The module has one function that immediately uses the opcode.
         const bulkModuleBytes = new Uint8Array([
           0x00,
           0x61,
@@ -149,7 +102,7 @@
           0x00,
           0x00,
           0x00, // version 1
-          // Type section: one function type: no params, no results.
+          // Type section: one function, no parameters/results.
           0x01,
           0x04,
           0x01,
@@ -161,7 +114,7 @@
           0x02,
           0x01,
           0x00,
-          // Code section: one function body using bulk opcode.
+          // Code section: one function body using data.drop (opcode 0x1a)
           0x0a,
           0x06,
           0x01,
@@ -177,9 +130,6 @@
 
       // Check for Memory64 support.
       function checkWasmMemory64() {
-        // Minimal module that declares a memory with the memory64 flag.
-        // Flags: 0x05 indicates that a maximum is present (0x01)
-        // and that memory64 is enabled (0x04).
         const memory64ModuleBytes = new Uint8Array([
           0x00,
           0x61,
@@ -193,7 +143,7 @@
           0x05, // Section ID: Memory
           0x06, // Section length: 6 bytes
           0x01, // Count: 1 memory
-          0x05, // Flags: 0x05 = 0x01 (max present) | 0x04 (memory64)
+          0x05, // Flags: (max present | memory64 flag)
           0x00, // Initial pages: 0
           0x01, // Maximum pages: 1
         ]);
@@ -228,13 +178,13 @@
             : "WebAssembly is NOT supported.";
         resultsHTML += `<li>basic_wasm: ${basicWasmSupport}</li>`;
 
-        // Check SIMD128 support.
+        // Check SIMD128 support (using Unity's test).
         const simdSupport = await checkWasmSIMD();
         resultsHTML += `<li>wasm_simd128: ${
           simdSupport ? "supported" : "NOT supported"
         }</li>`;
 
-        // Check Threads (Shared memory) support.
+        // Check Threads (shared memory) support.
         const threadsSupport = await checkWasmThreads();
         resultsHTML += `<li>wasm_threads: ${
           threadsSupport ? "supported" : "NOT supported"
