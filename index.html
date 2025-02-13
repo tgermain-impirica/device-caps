@@ -3,9 +3,100 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Document</title>
+    <title>Device Capability Detection</title>
+    <!-- Local Modernizr file -->
+    <script src="modernizr-custom.js"></script>
+    <style>
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+      }
+      header {
+        padding: 1em;
+        background: #eee;
+        text-align: center;
+      }
+      /* Removed max-height so #result takes up full remaining space */
+      #result {
+        flex: 1;
+        overflow-y: auto;
+        border: 1px solid #ccc;
+        padding: 10px;
+        font-family: monospace;
+        background: #f9f9f9;
+      }
+    </style>
   </head>
   <body>
-    <h1>Hello World</h1>
+    <header>
+      <h1>Device Capability Detection</h1>
+    </header>
+    <div id="result">Loading feature detection results...</div>
+
+    <script>
+      // Utility function to safely stringify an object
+      function safeStringify(value) {
+        try {
+          return JSON.stringify(
+            value,
+            function (key, val) {
+              if (typeof val === "function") {
+                return undefined;
+              }
+              return val;
+            },
+            2
+          );
+        } catch (e) {
+          return String(value);
+        }
+      }
+
+      if (typeof Modernizr === "undefined") {
+        console.error("Modernizr not found.");
+        document.getElementById("result").textContent =
+          "Error: Modernizr failed to load.";
+      } else {
+        let resultsHTML = "<ul>";
+
+        // Iterate over Modernizr keys and display them; expand objects into a string.
+        Object.keys(Modernizr).forEach((key) => {
+          if (typeof Modernizr[key] !== "function") {
+            let displayValue = Modernizr[key];
+            if (typeof displayValue === "object" && displayValue !== null) {
+              displayValue = safeStringify(displayValue);
+            }
+            resultsHTML += `<li>${key}: ${displayValue}</li>`;
+          }
+        });
+
+        // Explicit WebAssembly detection test.
+        let wasmSupport = "WebAssembly is not supported.";
+        if (
+          typeof WebAssembly === "object" &&
+          typeof WebAssembly.instantiate === "function"
+        ) {
+          try {
+            const moduleBytes = new Uint8Array([
+              0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
+            ]);
+            const mod = new WebAssembly.Module(moduleBytes);
+            if (mod instanceof WebAssembly.Module) {
+              wasmSupport = "WebAssembly is supported.";
+            }
+          } catch (e) {
+            wasmSupport = "WebAssembly is not supported.";
+          }
+        }
+
+        resultsHTML += `<li>webassembly_manual: ${wasmSupport}</li>`;
+        resultsHTML += "</ul>";
+
+        document.getElementById("result").innerHTML = resultsHTML;
+      }
+    </script>
   </body>
 </html>
